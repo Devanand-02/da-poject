@@ -7,9 +7,18 @@ Dependencies: pip install pandas scikit-learn mlxtend matplotlib
 =============================================================================
 """
 
+import os
+import sys
 import string
 import pandas as pd
 import matplotlib.pyplot as plt
+
+# Ensure terminal prints emojis properly on Windows
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier, export_text
@@ -20,89 +29,15 @@ from mlxtend.preprocessing import TransactionEncoder
 from mlxtend.frequent_patterns import apriori, association_rules
 
 # =============================================================================
-# DATASET CREATION (Built-in 72 realistic social media brand comments)
+# DATASET LOADING (Loaded from external CSV with UTF-8 support for emojis)
 # =============================================================================
-raw_data = [
-    # Positive comments (Campaign A & B, Gen Z & Millennial)
-    ("Absolutely love this new collection! The fabric is so soft 😍😀", "positive", "Gen Z", "A"),
-    ("Fast delivery and amazing customer support, thank you so much! 😀", "positive", "Millennial", "A"),
-    ("Best purchase I made this entire year, truly obsessed 😍", "positive", "Gen Z", "B"),
-    ("Quality exceeded my expectations, worth every single penny 😂😀", "positive", "Millennial", "B"),
-    ("The design is super aesthetic and minimalist, big thumbs up! 😍", "positive", "Gen Z", "A"),
-    ("Hands down the greatest phone case on the market 😀😍", "positive", "Millennial", "A"),
-    ("OMG this drop is everything! Need this in every color 😍😂", "positive", "Gen Z", "B"),
-    ("Great quality, fits perfectly, highly recommend this brand 😀", "positive", "Millennial", "B"),
-    ("Super easy checkout and smooth delivery process 😀😍", "positive", "Gen Z", "A"),
-    ("Loving the eco-friendly packaging and conscious mission! 😍", "positive", "Millennial", "A"),
-    ("Such a pleasant surprise, my family loved the gift 😀", "positive", "Millennial", "B"),
-    ("Impressed with how durable this material feels 😍", "positive", "Gen Z", "B"),
-    ("This flavor is insane, by far the top choice 😂😀", "positive", "Gen Z", "A"),
-    ("Flawless experience from order to unboxing, bravo! 😍😀", "positive", "Millennial", "A"),
-    ("Can not believe how fast this arrived, very happy customer 😀", "positive", "Millennial", "B"),
-    ("Their winter lineup is straight fire, take my money 😍😂", "positive", "Gen Z", "B"),
-    ("Totally worth the hype, incredible sound quality 😀", "positive", "Gen Z", "A"),
-    ("Excellent service, resolved my question in five minutes flat 😍", "positive", "Millennial", "A"),
-    ("So comfortable and stylish, definitely ordering another pair 😀😍", "positive", "Gen Z", "B"),
-    ("Solid product that actually does what the ad promises 😂😀", "positive", "Millennial", "B"),
-    ("The mobile app update is sleek and lightning fast! 😀", "positive", "Gen Z", "A"),
-    ("Five stars for durability and battery life alone 😍", "positive", "Millennial", "A"),
-    ("Such cute packaging, made my whole day brighter 😍😀", "positive", "Gen Z", "B"),
-    ("Always reliable, never had an issue with their orders 😀", "positive", "Millennial", "B"),
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_PATH = os.path.join(BASE_DIR, "sentiment_data.csv")
 
-    # Neutral comments (Campaign A & B, Gen Z & Millennial)
-    ("Received the package today. It looks as advertised 😐", "neutral", "Millennial", "A"),
-    ("Ordered size medium, fits okay but standard fit 😐", "neutral", "Gen Z", "A"),
-    ("Delivery took five business days as expected 😐", "neutral", "Millennial", "B"),
-    ("The color is slightly darker than the website photo 😮", "neutral", "Gen Z", "B"),
-    ("It works fine for daily basic tasks, nothing special 😐", "neutral", "Millennial", "A"),
-    ("Arrived in good condition with standard packaging 😐", "neutral", "Gen Z", "A"),
-    ("Average battery life, lasts about eight hours 😮", "neutral", "Millennial", "B"),
-    ("The material is neither too thick nor too thin 😐", "neutral", "Gen Z", "B"),
-    ("Does the job as described in the user manual 😐", "neutral", "Millennial", "A"),
-    ("Sizing is true to chart, basic neutral color options 😐", "neutral", "Gen Z", "A"),
-    ("Checked out both models, they seem fairly similar 😮", "neutral", "Millennial", "B"),
-    ("Neutral opinion so far, will update after two weeks 😐", "neutral", "Gen Z", "B"),
-    ("Tracking status updated today, package is in transit 😐", "neutral", "Millennial", "A"),
-    ("Standard quality you expect at this specific price point 😐", "neutral", "Gen Z", "A"),
-    ("Not bad, but not extraordinary either, just okay 😐😮", "neutral", "Millennial", "B"),
-    ("Expected it to be slightly smaller in hand 😮", "neutral", "Gen Z", "B"),
-    ("Simple interface, decent features for entry level 😐", "neutral", "Millennial", "A"),
-    ("Got it on sale, acceptable quality for the discount 😐", "neutral", "Gen Z", "A"),
-    ("Moderate sound profile, good enough for video calls 😐", "neutral", "Millennial", "B"),
-    ("Basic functionality works without any crashes so far 😐", "neutral", "Gen Z", "B"),
-    ("Decent cotton material, washed once without shrinking 😐", "neutral", "Millennial", "A"),
-    ("The box was slightly dented but item inside is fine 😮", "neutral", "Gen Z", "A"),
-    ("Ordinary product, does what any standard model would do 😐", "neutral", "Millennial", "B"),
-    ("Shipping speed was average, took a full week 😐", "neutral", "Gen Z", "B"),
+if not os.path.exists(CSV_PATH):
+    raise FileNotFoundError(f"Dataset CSV not found at: {CSV_PATH}")
 
-    # Negative comments, Negations, and Sarcasm (Campaign A & B, Gen Z & Millennial)
-    ("Worst customer service ever, representative was so rude 😡", "negative", "Millennial", "A"),
-    ("Item arrived broken and scratched, absolutely furious 😡😢", "negative", "Gen Z", "A"),
-    ("This is not good at all, total waste of my hard earned money 😡", "negative", "Millennial", "B"),
-    ("Product stopped working on day two, completely useless 😭", "negative", "Gen Z", "B"),
-    ("Love waiting three hours on hold for support, brilliant service! 😭", "negative", "Millennial", "A"), # Sarcasm
-    ("Great job breaking the app with your latest update! 😡", "negative", "Gen Z", "A"), # Sarcasm
-    ("Not happy with this cheap plastic quality, returning immediately 😢", "negative", "Millennial", "B"),
-    ("Shipping took three weeks and no reply to emails 😡😭", "negative", "Gen Z", "B"),
-    ("Not worth the high price tag, very disappointed with performance 😢", "negative", "Millennial", "A"),
-    ("Defective zipper broke right out of the box 😡", "negative", "Gen Z", "A"),
-    ("Terrible battery drains in one hour, do not buy this 😭😡", "negative", "Millennial", "B"),
-    ("Misleading advertisement, looks nothing like the promotional photos 😡", "negative", "Gen Z", "B"),
-    ("Never buying from this brand again, horrific experience 😡", "negative", "Millennial", "A"),
-    ("Not satisfied with the sizing, ran two sizes too small 😢", "negative", "Gen Z", "A"),
-    ("Charged my card twice and support refused to help 😡😭", "negative", "Millennial", "B"),
-    ("Feels extremely fragile and cheap, very regretful purchase 😢", "negative", "Gen Z", "B"),
-    ("App crashes every single time I try to log in 😡", "negative", "Gen Z", "A"),
-    ("Overpriced junk, regret listening to social media influencers 😭", "negative", "Millennial", "A"),
-    ("The strap ripped on first use, unbelievable lack of quality 😡", "negative", "Gen Z", "B"),
-    ("Package was marked delivered but never arrived, awful carrier 😢😡", "negative", "Millennial", "B"),
-    ("Fabric started pilling after the first wash, do not recommend 😢", "negative", "Millennial", "A"),
-    ("No refund issued after three weeks of return confirmation 😡", "negative", "Gen Z", "A"),
-    ("Not recommended, poor craftsmanship and flimsy seams 😭", "negative", "Millennial", "B"),
-    ("Terrible audio delay makes watching movies impossible 😡😭", "negative", "Gen Z", "B"),
-]
-
-df = pd.DataFrame(raw_data, columns=["text", "sentiment", "age_group", "campaign"])
+df = pd.read_csv(CSV_PATH, encoding="utf-8")
 
 # =============================================================================
 # STEP 1: DATA OVERVIEW
@@ -353,7 +288,8 @@ try:
     axes[2].tick_params(axis="x", rotation=0)
 
     plt.tight_layout()
-    plt.savefig("results.png", dpi=300)
-    print("\nVisualizations successfully saved as 'results.png'.")
+    output_graph_path = os.path.join(BASE_DIR, "results.png")
+    plt.savefig(output_graph_path, dpi=300)
+    print(f"\nVisualizations successfully saved to: {output_graph_path}")
 except Exception as e:
     print(f"\nPlotting skipped/handled safely: {e}")
